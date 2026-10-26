@@ -1,0 +1,11 @@
+qiskit>=2.0
+qiskit-aer>=0.17
+qiskit-machine-learning>=0.9
+scikit-learn>=1.5
+numpy>=2.0
+scipy>=1.13
+pandas>=2.2
+matplotlib>=3.9
+jupyter
+ipykernel
+pytest>=8.0

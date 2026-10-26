@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qml-vs-classical"
+version = "0.1.0"
+description = "Variational quantum classifiers and quantum kernels benchmarked against classical baselines"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Aravind V A" }]
+requires-python = ">=3.10"
+dependencies = [
+    "qiskit>=2.0",
+    "qiskit-aer>=0.17",
+    "qiskit-machine-learning>=0.9",
+    "scikit-learn>=1.5",
+    "numpy>=2.0",
+    "pandas>=2.2",
+]
+
+[project.optional-dependencies]
+notebook = ["matplotlib>=3.9", "jupyter", "ipykernel"]
+test = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
