@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 import warnings
 from collections.abc import Callable, Iterable
@@ -20,6 +21,7 @@ from .quantum import (
     noisy_sampler,
     predict_with_sampler,
 )
+from .tuning import best_params, make_tuned
 
 MODELS = CLASSICAL_MODELS + QUANTUM_MODELS
 
@@ -64,19 +66,30 @@ def run_benchmark(
     models: Iterable[str] = MODELS,
     seeds: Iterable[int] = range(5),
     config: QuantumConfig = QuantumConfig(),
+    tuned: bool = True,
     progress: Callable[[str], None] | None = None,
 ) -> pd.DataFrame:
-    """One row per (dataset, model, seed). Every model gets the same split per seed."""
+    """One row per (dataset, model, seed). Every model gets the same split per seed.
+
+    With ``tuned=True`` (the default) every model selects its hyperparameters
+    by 3-fold CV on the training split (see :mod:`qmlbench.tuning`) and
+    ``train_time`` includes that search. With ``tuned=False`` the fixed
+    defaults are used.
+    """
     rows = []
     for dataset in datasets:
         for seed in seeds:
             split = load_split(dataset, seed)
             for name in models:
-                model = make_model(name, split.num_features, seed, config)
+                if tuned:
+                    model = make_tuned(name, split.num_features, seed, config)
+                else:
+                    model = make_model(name, split.num_features, seed, config)
                 result = evaluate(model, split)
-                rows.append({"dataset": dataset, "model": name, "seed": seed,
+                params = json.dumps(best_params(model), default=str) if tuned else ""
+                rows.append({"dataset": dataset, "model": name, "seed": seed, "tuned": tuned,
                              "n_train": len(split.y_train), "n_features": split.num_features,
-                             **result})
+                             **result, "best_params": params})
                 if progress:
                     progress(f"{dataset:14s} seed={seed} {name:9s} acc={result['accuracy']:.3f} "
                              f"t={result['train_time']:.1f}s")
@@ -95,9 +108,13 @@ def noise_study(
     noise_levels: Iterable[float] = (0.0, 0.005, 0.01, 0.02, 0.05, 0.1),
     seeds: Iterable[int] = range(3),
     config: QuantumConfig = QuantumConfig(),
+    feature_scale: float = 1.0,
     progress: Callable[[str], None] | None = None,
 ) -> pd.DataFrame:
     """VQC accuracy under depolarizing + readout noise of increasing strength.
+
+    ``config`` and ``feature_scale`` should be the VQC setting chosen by
+    tuning, so the noise study starts from the best noiseless model.
 
     For each seed and noise level, two scenarios are measured:
 
@@ -108,7 +125,8 @@ def noise_study(
     """
     rows = []
     for seed in seeds:
-        split = load_split(dataset, seed)
+        s = load_split(dataset, seed)
+        split = Split(s.name, s.X_train * feature_scale, s.X_test * feature_scale, s.y_train, s.y_test)
         ideal = make_vqc(split.num_features, seed, config)
         base = evaluate(ideal, split)
         for p2 in noise_levels:
